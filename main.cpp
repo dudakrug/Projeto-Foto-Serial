@@ -96,25 +96,6 @@ void configurarTimeouts(){
     cout << "Timeouts configurados" << endl;
 }
 
-int menuUsuario(){
-
-    int opcao;
-    cout << "Selecione uma op��o" << endl;
-    cout << "1 - Enviar imagem" << endl;
-    cout << "2 - Exibir imagem" << endl;
-    cout << "3 - Limpar o display" << endl;
-    cout << "4 - Sair" << endl;
-    cin >> opcao;
-
-    if(opcao < 1 || opcao > 4){
-        cout << "Digite uma resposta v�lida." << endl;
-        return 0;
-    }
-    else{
-        return opcao;
-    }
-}
-
 // ler e interpretar o byte de resposta da placa
 bool receberResposta(uint8_t& resposta){ // & permite a funcao trocar o valor da vari�vel
 
@@ -132,11 +113,11 @@ bool enviarBytes(const uint8_t dados[], DWORD tamanho){
     DWORD bytesEnviados = 0;
 
     BOOL sucesso = WriteFile(
-        portaSerial,
-        comando,
-        2,
-        &bytesEnviados,
-        NULL
+        portaSerial, // porta serial
+        dados, // bytes que serao enviados
+        tamanho, // quantidade de bytes que serao enviados
+        &bytesEnviados, // quantidade de bytes que foram enviados
+        NULL // sem escrita sobreposta
     );
 
     if (!sucesso || bytesEnviados != 2) {
@@ -147,30 +128,86 @@ bool enviarBytes(const uint8_t dados[], DWORD tamanho){
     }
 }
 
-// transmitir o comando, o �ndice e os 504 bytes
+// transmitir o comando, o indice e os 504 bytes
 bool enviarImagem();
 
-// solicitar a exibi��o de uma imagem armazenada
-bool exibirImagem();
+// solicitar a exibicao de uma imagem armazenada
+bool exibirImagem(){
+
+    unsigned char indice;
+
+    cout << "Digite o indice da imagem (0 a 5): ";
+    cin >> indice;
+
+    if (indice > 31) {
+        cout << "Indice invalido!" << endl;
+        return false;
+    }
+
+    unsigned char CID = 0x80 | indice;
+
+    uint8_t comando[2] = {ATX, CID}; 
+
+    if (!enviarBytes(comando, 2)) {
+        return false;
+    }
+
+    uint8_t resposta;
+
+    if (!receberResposta(resposta)) {
+        cout << "Erro ao receber resposta!" << endl;
+        return false;
+    }
+
+    if (resposta == ACK) {
+        cout << "Imagem exibida com sucesso!" << endl;
+        return true;
+    }
+    else {
+        cout << "Erro ao exibir imagem!" << endl;
+        return false;
+    }
+}
 
 // enviar o comando de limpeza
-bool limparDisplay();
+bool limparDisplay(){
+    uint8_t comando[2] = {CLR, CLR}; // o comando precisa ser enviado duas vezes para ser aceito
+
+    enviarBytes(comando, 2); // enviando dois bytes do comando de limpeza
+
+    uint8_t resposta; // byte recebido da placa
+
+    if (!receberResposta(resposta)) {
+        cout << "Erro ao receber resposta da placa!" << endl;
+        return false;
+    }
+
+    if(resposta == ACK) {
+        cout << "Display limpo!" << endl;
+        return true;
+    }
+    else {
+        cout << "Erro ao limpar o display" << resposta << endl;
+        return false;
+    }
+}
 
 int main()
 {
     setlocale(LC_ALL, "portuguese");
 
     unsigned char imagem[504]; // 6 x 84 = 504
-	unsigned char indice;// cabe ate 32 imagens
-	unsigned char CID = 0x80 | indice; // endereco da comunicacao muda conforme o indice de imagem
 	uint8_t resposta; // Byte recebido da placa
 
     // FAZER VERIFICACAO DA ABERTURA DA PORTA ANTES DE ABRIR AS OUTRAS FUNCOES
-	abrirPortaSerial();
+	if (!abrirPortaSerial()) {
+		return 1;
+	}
+
 	configuracoesComunicacaoSerial();
 	configurarTimeouts();
 
-    menuUsuario();
+    CloseHandle(portaSerial); // fechar a porta serial
 
     return 0;
 }

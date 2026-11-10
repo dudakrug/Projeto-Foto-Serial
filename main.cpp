@@ -129,7 +129,57 @@ bool enviarBytes(const uint8_t dados[], DWORD tamanho){
 }
 
 // transmitir o comando, o indice e os 504 bytes
-bool enviarImagem();
+bool enviarImagem(const uint8_t imagem[]){
+
+    unsigned char indice;
+
+    cout << "Digite o indice da imagem (0 a 31): ";
+    cin >> indice;
+
+    if (indice > 31) {
+        cout << "Indice invalido!" << endl;
+        return false;
+    }
+
+    unsigned char CID = 0x80 | indice;
+
+    uint8_t comando[2] = {SNC, CID};
+
+    if (!enviarBytes(comando, 2)) {
+        return false;
+    }
+
+    uint8_t resposta;
+
+    if (!receberResposta(resposta)) {
+        cout << "Erro ao receber resposta!" << endl;
+        return false;
+    }
+
+    
+    if (resposta != MND) { // verifica se a placa autorizou o envio
+        cout << "Placa nao autorizou o envio da imagem!" << endl;
+        return false;
+    }
+
+    
+    if (!enviarBytes(imagem, 504)) { // envia os 504 bytes da imagem
+        return false;
+    }
+
+    if (!receberResposta(resposta)) {
+        cout << "Erro ao receber confirmacao!" << endl;
+        return false;
+    }
+
+    if (resposta == ACK) {
+        cout << "Imagem enviada com sucesso!" << endl;
+        return true;
+    }
+
+    cout << "Erro na transferencia da imagem!" << endl;
+    return false;
+}
 
 // solicitar a exibicao de uma imagem armazenada
 bool exibirImagem(){
@@ -206,6 +256,8 @@ int main()
 
 	configuracoesComunicacaoSerial();
 	configurarTimeouts();
+
+    enviarImagem(imagem);
 
     CloseHandle(portaSerial); // fechar a porta serial
 

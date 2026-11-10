@@ -132,11 +132,11 @@ bool enviarBytes(const uint8_t dados[], DWORD tamanho){
     DWORD bytesEnviados = 0;
 
     BOOL sucesso = WriteFile(
-        portaSerial,
-        comando,
-        2,
-        &bytesEnviados,
-        NULL
+        portaSerial, // porta serial
+        dados, // bytes que serao enviados
+        tamanho, // quantidade de bytes que serao enviados
+        &bytesEnviados, // quantidade de bytes que foram enviados
+        NULL // sem escrita sobreposta
     );
 
     if (!sucesso || bytesEnviados != 2) {
@@ -154,23 +154,48 @@ bool enviarImagem();
 bool exibirImagem();
 
 // enviar o comando de limpeza
-bool limparDisplay();
+bool limparDisplay(){
+    uint8_t comando[2] = {CLR, CLR}; // o comando precisa ser enviado duas vezes para ser aceito
+
+    enviarBytes(comando, 2); // enviando dois bytes do comando de limpeza
+
+    uint8_t resposta; // byte recebido da placa
+
+    if (!receberResposta(resposta)) {
+        cout << "Erro ao receber resposta da placa!" << endl;
+        return false;
+    }
+
+    if(resposta == ACK) {
+        cout << "Display limpo!" << endl;
+        return true;
+    }
+    else {
+        cout << "Erro ao limpar o display" << resposta << endl;
+        return false;
+    }
+}
 
 int main()
 {
     setlocale(LC_ALL, "portuguese");
 
     unsigned char imagem[504]; // 6 x 84 = 504
-	unsigned char indice;// cabe ate 32 imagens
+	unsigned char indice = 0;// cabe ate 32 imagens
 	unsigned char CID = 0x80 | indice; // endereco da comunicacao muda conforme o indice de imagem
 	uint8_t resposta; // Byte recebido da placa
 
     // FAZER VERIFICACAO DA ABERTURA DA PORTA ANTES DE ABRIR AS OUTRAS FUNCOES
-	abrirPortaSerial();
+	if (!abrirPortaSerial()) {
+		return 1;
+	}
+
 	configuracoesComunicacaoSerial();
 	configurarTimeouts();
 
-    menuUsuario();
+    //int opcao = menuUsuario();
+
+    CloseHandle(portaSerial); // fechar a porta serial
 
     return 0;
 }

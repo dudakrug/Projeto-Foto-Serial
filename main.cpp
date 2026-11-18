@@ -39,7 +39,6 @@ HANDLE portaSerial;
 
 using namespace std;
 
-
 bool abrirPortaSerial(){
 
     portaSerial = CreateFile(
@@ -52,7 +51,6 @@ bool abrirPortaSerial(){
         NULL
     );
 
-
     if (portaSerial == INVALID_HANDLE_VALUE) {
         cout << "Erro ao abrir a porta serial" << endl;
         return false;
@@ -63,7 +61,6 @@ bool abrirPortaSerial(){
         return true;
     }
 }
-
 
 void configuracoesComunicacaoSerial(){
 
@@ -89,7 +86,6 @@ void configuracoesComunicacaoSerial(){
 
     cout << "Comunicacao serial configurada" << endl;
 }
-
 
 void configurarTimeouts(){
 
@@ -127,7 +123,6 @@ bool receberResposta(uint8_t& resposta){
 
     return bytesLidos == 1;
 }
-
 
 bool enviarBytes(const uint8_t dados[], DWORD tamanho){
     DWORD bytesEnviados = 0;

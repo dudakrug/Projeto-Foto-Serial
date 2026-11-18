@@ -2,36 +2,55 @@
 #include <cstdint>
 #include <windows.h>
 
+// IMAGENS DO ALBUM
+// Para adicionar uma imagem:
+// 1 - gerar o .h da imagem (vetor de 504 bytes) e colocar na pasta do projeto
+// 2 - colocar o #include do arquivo aqui embaixo
+// 3 - colocar o nome do vetor dentro de album[]
+
+#include "fotobulba.h"
+#include "fotocharmander.h"
+#include "fotosquirtle.h"
+
+const uint8_t* album[] = {
+    fotobulba,
+    fotocharmander,
+    fotosquirtle
+};
+
+int totalImagens = sizeof(album) / sizeof(album[0]);
+
+// tempo que cada imagem fica na tela (em milissegundos)
+#define TEMPO_IMAGEM 3000
+
 // COMANDOS - envia bits especificos para se comunicar com a porta serial
 #define SNC 0xD3 // Solicita envio da imagem
 #define ATX 0xD8 // Ativar/exibir uma imagem
 #define CLR 0xC3 // Comando para limpar a tela
 
 #define ACK 0x41 // Confirmar que o comando foi executado
-#define NAK 0x4E // Informar que o comando � inv�lido
+#define NAK 0x4E // Informar que o comando e invalido
 #define MND 0x4D // Avisar que pode enviar os dados da imagem
-#define NID 0x49 // Informar que o �ndice � inv�lido
-#define TOUT 0x44 // Indicar timeout na comunica��o
+#define NID 0x49 // Informar que o indice e invalido
+#define TOUT 0x44 // Indicar timeout na comunicacao
 
-// Identificador da portal serial - usado nas chamadas de leitura e escrita
+
 HANDLE portaSerial;
 
 using namespace std;
 
-// configurar e abrir a comunica��o
 bool abrirPortaSerial(){
 
     portaSerial = CreateFile(
-        "\\\\.\\COM5",           // Nome da porta
+        "\\\\.\\COM10",
         GENERIC_READ | GENERIC_WRITE,
-        0,                       // Acesso exclusivo
+        0,
         NULL,
         OPEN_EXISTING,
         0,
         NULL
     );
 
-    //verificacao se a porta abriu
     if (portaSerial == INVALID_HANDLE_VALUE) {
         cout << "Erro ao abrir a porta serial" << endl;
         return false;
@@ -43,26 +62,24 @@ bool abrirPortaSerial(){
     }
 }
 
-// configura as principais informacoes da Comunicacao Serial definidas pelo Zucco
 void configuracoesComunicacaoSerial(){
 
-    DCB configuracao = {}; // criacao da estruta que armazena as informacoes
+    DCB configuracao = {};
 
-    configuracao.DCBlength = sizeof(DCB); // informa ao windows o tamanho da estrutura
+    configuracao.DCBlength = sizeof(DCB);
 
-    if(!GetCommState(portaSerial, &configuracao)) { // informa o estado da porta antes de alterar as configuracoes
+    if(!GetCommState(portaSerial, &configuracao)) {
         cout << "Erro ao obter configuracao serial" << endl;
         return;
     }
 
-    // requisitos definidos pelo Zucco
     configuracao.BaudRate = CBR_115200;
     configuracao.ByteSize = 8;
     configuracao.Parity = EVENPARITY;
     configuracao.StopBits = ONESTOPBIT;
     configuracao.fParity = TRUE;
 
-    if(!SetCommState(portaSerial, &configuracao)) { // verifica se aplicou as configuracoes acima
+    if(!SetCommState(portaSerial, &configuracao)) {
         cout << "Erro ao configurar comunicacao serial" << endl;
         return;
     }
@@ -70,25 +87,24 @@ void configuracoesComunicacaoSerial(){
     cout << "Comunicacao serial configurada" << endl;
 }
 
-// definir quanto tempo o computador espera ao enviar ou receber dados pela porta serial
 void configurarTimeouts(){
 
     COMMTIMEOUTS timeouts = {};
 
-    // Tempo maximo entre leituras de bytes
-    timeouts.ReadIntervalTimeout = 50; // intervalo entre bits e bytes
 
-    // Tempo constante para concluir uma leitura
-    timeouts.ReadTotalTimeoutConstant = 500; // limite de tempo de espera
+    timeouts.ReadIntervalTimeout = 50;
 
-    // Tempo adicional por byte solicitado
-    timeouts.ReadTotalTimeoutMultiplier = 10; // tempo adicional por byte solicitado
 
-    // Timeouts de escrita
-    timeouts.WriteTotalTimeoutConstant = 500; // limite de tempo de escrita
-    timeouts.WriteTotalTimeoutMultiplier = 10; // tempo adicional por byte enviado
+    timeouts.ReadTotalTimeoutConstant = 500;
 
-    if (!SetCommTimeouts(portaSerial, &timeouts)) { // verifica se configurou
+
+    timeouts.ReadTotalTimeoutMultiplier = 10;
+
+
+    timeouts.WriteTotalTimeoutConstant = 500;
+    timeouts.WriteTotalTimeoutMultiplier = 10;
+
+    if (!SetCommTimeouts(portaSerial, &timeouts)) {
         cout << "Erro ao configurar timeouts!" << endl;
         return;
     }
@@ -96,8 +112,8 @@ void configurarTimeouts(){
     cout << "Timeouts configurados" << endl;
 }
 
-// ler e interpretar o byte de resposta da placa
-bool receberResposta(uint8_t& resposta){ // & permite a funcao trocar o valor da vari�vel
+
+bool receberResposta(uint8_t& resposta){
 
     DWORD bytesLidos = 0;
 
@@ -108,38 +124,27 @@ bool receberResposta(uint8_t& resposta){ // & permite a funcao trocar o valor da
     return bytesLidos == 1;
 }
 
-// ela recebe um vetor de bytes e a quantidade que deve transmitir - reutilizavel
 bool enviarBytes(const uint8_t dados[], DWORD tamanho){
     DWORD bytesEnviados = 0;
 
     BOOL sucesso = WriteFile(
-        portaSerial, // porta serial
-        dados, // bytes que serao enviados
-        tamanho, // quantidade de bytes que serao enviados
-        &bytesEnviados, // quantidade de bytes que foram enviados
-        NULL // sem escrita sobreposta
+        portaSerial,
+        dados,
+        tamanho,
+        &bytesEnviados,
+        NULL
     );
 
-    if (!sucesso || bytesEnviados != 2) {
-        cout << "Erro ao enviar comando!" << endl;
-    }
-    else {
-        cout << "Comando enviado!" << endl;
-    }
-}
-
-// transmitir o comando, o indice e os 504 bytes
-bool enviarImagem(const uint8_t imagem[]){
-
-    unsigned char indice;
-
-    cout << "Digite o indice da imagem (0 a 31): ";
-    cin >> indice;
-
-    if (indice > 31) {
-        cout << "Indice invalido!" << endl;
+    if (!sucesso || bytesEnviados != tamanho) {
+        cout << "Erro ao enviar dados!" << endl;
         return false;
     }
+
+    return true;
+}
+
+
+bool enviarImagem(const uint8_t imagem[], int indice){
 
     unsigned char CID = 0x80 | indice;
 
@@ -156,14 +161,12 @@ bool enviarImagem(const uint8_t imagem[]){
         return false;
     }
 
-    
-    if (resposta != MND) { // verifica se a placa autorizou o envio
+    if (resposta != MND) {
         cout << "Placa nao autorizou o envio da imagem!" << endl;
         return false;
     }
 
-    
-    if (!enviarBytes(imagem, 504)) { // envia os 504 bytes da imagem
+    if (!enviarBytes(imagem, 504)) {
         return false;
     }
 
@@ -181,22 +184,12 @@ bool enviarImagem(const uint8_t imagem[]){
     return false;
 }
 
-// solicitar a exibicao de uma imagem armazenada
-bool exibirImagem(){
 
-    unsigned char indice;
-
-    cout << "Digite o indice da imagem (0 a 5): ";
-    cin >> indice;
-
-    if (indice > 31) {
-        cout << "Indice invalido!" << endl;
-        return false;
-    }
+bool exibirImagem(int indice){
 
     unsigned char CID = 0x80 | indice;
 
-    uint8_t comando[2] = {ATX, CID}; 
+    uint8_t comando[2] = {ATX, CID};
 
     if (!enviarBytes(comando, 2)) {
         return false;
@@ -219,47 +212,59 @@ bool exibirImagem(){
     }
 }
 
-// enviar o comando de limpeza
-bool limparDisplay(){
-    uint8_t comando[2] = {CLR, CLR}; // o comando precisa ser enviado duas vezes para ser aceito
 
-    enviarBytes(comando, 2); // enviando dois bytes do comando de limpeza
+bool enviarAlbum(){
 
-    uint8_t resposta; // byte recebido da placa
+    for (int i = 0; i < totalImagens; i++) {
+        cout << "Enviando imagem " << i << "..." << endl;
 
-    if (!receberResposta(resposta)) {
-        cout << "Erro ao receber resposta da placa!" << endl;
-        return false;
+        if (!enviarImagem(album[i], i)) {
+            return false;
+        }
     }
 
-    if(resposta == ACK) {
-        cout << "Display limpo!" << endl;
-        return true;
+    return true;
+}
+
+
+bool slideshow(){
+
+    for (int i = 0; i < totalImagens; i++) {
+
+        if (!exibirImagem(i)) {
+            return false;
+        }
+
+        Sleep(TEMPO_IMAGEM);
     }
-    else {
-        cout << "Erro ao limpar o display" << resposta << endl;
-        return false;
-    }
+
+    return true;
 }
 
 int main()
 {
     setlocale(LC_ALL, "portuguese");
 
-    unsigned char imagem[504]; // 6 x 84 = 504
-	uint8_t resposta; // Byte recebido da placa
+    if (totalImagens > 32) {
+        cout << "O album deve ter no maximo 32 imagens" << endl;
+        return 1;
+    }
 
-    // FAZER VERIFICACAO DA ABERTURA DA PORTA ANTES DE ABRIR AS OUTRAS FUNCOES
-	if (!abrirPortaSerial()) {
-		return 1;
-	}
+    if (!abrirPortaSerial()) {
+        return 1;
+    }
 
-	configuracoesComunicacaoSerial();
-	configurarTimeouts();
+    configuracoesComunicacaoSerial();
+    configurarTimeouts();
 
-    enviarImagem(imagem);
 
-    CloseHandle(portaSerial); // fechar a porta serial
+    if (enviarAlbum()) {
+
+
+        while (slideshow()) {}
+    }
+
+    CloseHandle(portaSerial);
 
     return 0;
 }
